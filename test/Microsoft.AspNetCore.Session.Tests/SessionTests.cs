@@ -667,7 +667,25 @@ namespace Microsoft.AspNetCore.Session
                 response.EnsureSuccessStatusCode();
             }
 
-            var sessionLogMessages = sink.Writes.OnlyMessagesFromSource<SessionMiddleware>().ToArray();
+            var retries = 0;
+            WriteContext[] sessionLogMessages = null;
+            while(true)
+            {
+                try
+                {
+                    sessionLogMessages = sink.Writes.OnlyMessagesFromSource<SessionMiddleware>().ToArray();
+                    break;
+                }
+                catch (InvalidOperationException)
+                {
+                    if (retries++ > 4)
+                    {
+                        throw;
+                    }
+
+                    await Task.Delay(1000);
+                }
+            }
 
             Assert.Equal(1, sessionLogMessages.Length);
             Assert.Contains("Error closing the session.", sessionLogMessages[0].State.ToString());
